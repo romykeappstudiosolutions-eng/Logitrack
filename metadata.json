@@ -1,0 +1,7 @@
+{
+  "name": "LogiTrack AI - Sistema de Control Logístico",
+  "description": "Plataforma avanzada para el control de picking, packing y recepción con análisis de IA para almacenes.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
