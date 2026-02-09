@@ -19,9 +19,10 @@ export const supabaseService = {
   async upsert(tableName: string, record: any) {
     if (!isSupabaseConfigured || !supabase) return null;
     
+    // Use id as the onConflict key for tables that have it
     const { data, error } = await supabase
       .from(tableName)
-      .upsert(record);
+      .upsert(record, { onConflict: 'id' });
       
     if (error) console.error(`Error upserting to ${tableName}:`, error);
     return data;

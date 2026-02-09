@@ -220,7 +220,7 @@ export default function App() {
                 articleMaster={articleMaster} 
                 setArticleMaster={(a:any)=>{setArticleMaster(a); if(isSupabaseConfigured) a.forEach((x:any)=>supabaseService.upsertArticleMaster(x))}} 
               />} />
-              <Route path="/config" element={<Operators operators={operators} setOperators={(ops:any)=>{setOperators(ops); const last = Array.isArray(ops)?ops[ops.length-1]:null; if(isSupabaseConfigured && last) supabaseService.upsert('operators', last)}} stats={stats} />} />
+              <Route path="/config" element={<Operators operators={operators} setOperators={setOperators} stats={stats} />} />
               <Route path="/reports" element={<Reports orders={orders} receptions={receptions} conditioning={conditioning} storage={storage} />} />
               <Route path="/sync" element={<SyncHub orders={orders} setOrders={setOrders} masterBase={masterBase} setMasterBase={setMasterBase} operators={operators} setOperators={setOperators} />} />
             </Routes>
