@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { PickingOrder, OperatorStats } from "../types.ts";
 
 export const getLogisticAnalysis = async (orders: PickingOrder[], stats: OperatorStats[]) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   
   const prompt = `
     Como Director de Operaciones Logísticas, analiza el desempeño diario:
@@ -44,7 +44,7 @@ export const getLogisticAnalysis = async (orders: PickingOrder[], stats: Operato
 };
 
 export const getOperatorSpecificAnalysis = async (operatorName: string, stats: OperatorStats) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   
   const prompt = `
     Realiza una auditoría técnica de productividad para el colaborador "${operatorName}":
