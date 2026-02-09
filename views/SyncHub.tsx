@@ -11,52 +11,58 @@ export default function SyncHub({ orders, setOrders, masterBase, setMasterBase, 
     const zip = new JSZip();
     
     try {
-      // Lista de archivos con sus rutas relativas correctas según la estructura del proyecto
       const projectFiles = [
-        { name: 'index.html', path: './index.html' },
-        { name: 'index.tsx', path: './index.tsx' },
-        { name: 'App.tsx', path: './App.tsx' },
-        { name: 'types.ts', path: './types.ts' },
-        { name: 'constants.tsx', path: './constants.tsx' },
-        { name: 'metadata.json', path: './metadata.json' },
-        { name: 'package.json', path: './package.json' },
-        // Vistas
-        { name: 'views/Dashboard.tsx', path: './views/Dashboard.tsx' },
-        { name: 'views/Upload.tsx', path: './views/Upload.tsx' },
-        { name: 'views/Operators.tsx', path: './views/Operators.tsx' },
-        { name: 'views/Reports.tsx', path: './views/Reports.tsx' },
-        { name: 'views/ManageOrders.tsx', path: './views/ManageOrders.tsx' },
-        { name: 'views/SyncHub.tsx', path: './views/SyncHub.tsx' },
-        { name: 'views/Reception.tsx', path: './views/Reception.tsx' },
-        { name: 'views/Conditioning.tsx', path: './views/Conditioning.tsx' },
-        { name: 'views/Storage.tsx', path: './views/Storage.tsx' },
-        { name: 'views/OrderRegistration.tsx', path: './views/OrderRegistration.tsx' },
-        // Servicios
-        { name: 'services/geminiService.ts', path: './services/geminiService.ts' },
-        { name: 'services/cloudService.ts', path: './services/cloudService.ts' }
+        { nameInZip: 'index.html', fetchPath: './index.html' },
+        { nameInZip: 'index.tsx', fetchPath: './index.tsx' },
+        { nameInZip: 'App.tsx', fetchPath: './App.tsx' },
+        { nameInZip: 'types.ts', fetchPath: './types.ts' },
+        { nameInZip: 'constants.tsx', fetchPath: './constants.tsx' },
+        { nameInZip: 'metadata.json', fetchPath: './metadata.json' },
+        { nameInZip: 'package.json', fetchPath: './package.json' },
+        { nameInZip: 'supabase_schema.sql', fetchPath: './supabase_schema.sql' },
+        
+        // Carpeta de Vistas (views/)
+        { nameInZip: 'views/Dashboard.tsx', fetchPath: './views/Dashboard.tsx' },
+        { nameInZip: 'views/Upload.tsx', fetchPath: './views/Upload.tsx' },
+        { nameInZip: 'views/Operators.tsx', fetchPath: './views/Operators.tsx' },
+        { nameInZip: 'views/Reports.tsx', fetchPath: './views/Reports.tsx' },
+        { nameInZip: 'views/ManageOrders.tsx', fetchPath: './views/ManageOrders.tsx' },
+        { nameInZip: 'views/SyncHub.tsx', fetchPath: './views/SyncHub.tsx' },
+        { nameInZip: 'views/Reception.tsx', fetchPath: './views/Reception.tsx' },
+        { nameInZip: 'views/Conditioning.tsx', fetchPath: './views/Conditioning.tsx' },
+        { nameInZip: 'views/Storage.tsx', fetchPath: './views/Storage.tsx' },
+        { nameInZip: 'views/OrderRegistration.tsx', fetchPath: './views/OrderRegistration.tsx' },
+        
+        // Carpeta de Servicios (services/)
+        { nameInZip: 'services/geminiService.ts', fetchPath: './services/geminiService.ts' },
+        { nameInZip: 'services/cloudService.ts', fetchPath: './services/cloudService.ts' },
+        { nameInZip: 'services/supabaseClient.ts', fetchPath: './services/supabaseClient.ts' },
+        { nameInZip: 'services/supabaseService.ts', fetchPath: './services/supabaseService.ts' }
       ];
 
       for (const file of projectFiles) {
         try {
-          const response = await fetch(file.path);
+          const response = await fetch(file.fetchPath);
           if (response.ok) {
             const text = await response.text();
-            zip.file(file.name, text);
+            zip.file(file.nameInZip, text);
+          } else {
+            console.warn(`Archivo no encontrado: ${file.fetchPath}`);
           }
         } catch (e) {
-          console.error(`No se pudo incluir el archivo ${file.name}:`, e);
+          console.error(`Error de red al intentar obtener ${file.fetchPath}:`, e);
         }
       }
 
       const content = await zip.generateAsync({ type: "blob" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(content);
-      link.download = `LOGITRACK_BACKUP_${new Date().toISOString().split('T')[0]}.zip`;
+      link.download = `LOGITRACK_FULL_BACKUP_${new Date().toISOString().split('T')[0]}.zip`;
       link.click();
       
-      alert("¡PROYECTO DESCARGADO!\n\nSe ha generado un archivo ZIP con toda la estructura de carpetas. Puedes subir este archivo manualmente a GitHub si la sincronización automática sigue fallando.");
+      alert("¡RESPALDO GENERADO!\n\nSe ha incluido el archivo 'supabase_schema.sql' para que puedas configurar tu base de datos fácilmente.");
     } catch (error) {
-      alert("Error al generar el paquete de respaldo.");
+      alert("Error crítico al generar el paquete ZIP.");
       console.error(error);
     } finally {
       setIsGenerating(false);
@@ -64,7 +70,7 @@ export default function SyncHub({ orders, setOrders, masterBase, setMasterBase, 
   };
 
   const clearData = () => {
-    if(window.confirm('¿ESTA ACCIÓN BORRARÁ TODO EL HISTORIAL LOCAL. DESEA CONTINUAR?')) {
+    if(window.confirm('¿ESTA ACCIÓN BORRARÁ TODO EL HISTORIAL LOCAL?')) {
       localStorage.clear();
       alert('Datos locales reseteados.');
       window.location.reload();
@@ -79,8 +85,18 @@ export default function SyncHub({ orders, setOrders, masterBase, setMasterBase, 
         </div>
         
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Sincronización</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Respaldo Seguro de la Aplicación</p>
+          <h2 className="text-3xl font-black text-slate-900 tracking-tighter">Sync & Database</h2>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-2">Configuración de Persistencia Cloud</p>
+        </div>
+
+        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 text-left space-y-4">
+           <div className="flex items-center gap-3">
+              <div className="w-1.5 h-6 bg-blue-500 rounded-full"></div>
+              <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Esquema SQL Incluido</h4>
+           </div>
+           <p className="text-[10px] font-bold text-slate-500 leading-relaxed">
+             Descarga el proyecto para obtener <code>supabase_schema.sql</code>. Ejecútalo en Supabase para crear las tablas de Picking, Packing y Maestros.
+           </p>
         </div>
         
         <div className="space-y-4">
@@ -89,12 +105,8 @@ export default function SyncHub({ orders, setOrders, masterBase, setMasterBase, 
             disabled={isGenerating}
             className="w-full py-6 bg-slate-900 text-white rounded-2xl text-[12px] font-black uppercase tracking-widest flex items-center justify-center gap-4 transition-all hover:bg-black active:scale-95 shadow-2xl disabled:opacity-50"
           >
-            {isGenerating ? "PROCESANDO ARCHIVOS..." : "DESCARGAR PROYECTO (ZIP)"}
+            {isGenerating ? "EMPAQUETANDO SQL & SERVICES..." : "DESCARGAR PROYECTO + SQL"}
           </button>
-          
-          <p className="text-[9px] font-bold text-slate-400 leading-relaxed px-4">
-            Si la sincronización directa con GitHub presenta errores de conexión, utiliza este botón para obtener una copia física de todo tu trabajo.
-          </p>
         </div>
 
         <div className="pt-4 border-t border-slate-100">
@@ -106,6 +118,7 @@ export default function SyncHub({ orders, setOrders, masterBase, setMasterBase, 
           </button>
         </div>
       </div>
+      <p className="mt-8 text-[9px] font-bold text-slate-300 uppercase tracking-[0.3em]">LogiTrack AI • Database Initializer</p>
     </div>
   );
 }
