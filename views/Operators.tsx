@@ -4,6 +4,8 @@ import { Operator, OperatorStats } from '../types.ts';
 import { Icons } from '../constants.tsx';
 import { getOperatorSpecificAnalysis } from '../services/geminiService.ts';
 import { jsPDF } from 'jspdf';
+import { supabaseService } from '../services/supabaseService.ts';
+import { isSupabaseConfigured } from '../services/supabaseClient.ts';
 
 export default function Operators({ operators, setOperators, stats }: { operators: Operator[], setOperators: React.Dispatch<React.SetStateAction<Operator[]>>, stats: OperatorStats[] }) {
   const [selected, setSelected] = useState<OperatorStats | null>(null);
@@ -93,19 +95,27 @@ export default function Operators({ operators, setOperators, stats }: { operator
     e.preventDefault(); e.stopPropagation(); setConfirmingId(null);
   };
 
-  const executeDelete = (e: React.MouseEvent, id: string, name: string) => {
+  const executeDelete = async (e: React.MouseEvent, id: string, name: string) => {
     e.preventDefault(); e.stopPropagation();
     setOperators(prev => prev.filter(op => op.id !== id));
     if (selected && selected.name === name) setSelected(null);
     setConfirmingId(null);
+    // Persist deletion to Supabase
+    if (isSupabaseConfigured) {
+      await supabaseService.delete('operators', id);
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
     const newOp: Operator = { id: Math.random().toString(36).substr(2, 9), name: newName.trim(), role: newRole.trim() || 'Operador Logístico', active: true };
     setOperators(prev => [...prev, newOp]);
     setNewName(''); setNewRole('');
+    // Persist to Supabase
+    if (isSupabaseConfigured) {
+      await supabaseService.upsert('operators', newOp);
+    }
   };
 
   return (
