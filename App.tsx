@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { PickingOrder, Operator, MasterOrder, OperatorStats, ReceptionOrder, ConditioningOrder, StorageOrder, ArticleMaster } from './types.ts';
 import { Icons } from './constants.tsx';
-import { supabaseService } from './services/supabaseService.ts';
+import { supabaseService, ServiceResult } from './services/supabaseService.ts';
 import { isSupabaseConfigured } from './services/supabaseClient.ts';
 
 // Importaciones desde la carpeta views
@@ -31,13 +31,16 @@ export default function App() {
   const [articleMaster, setArticleMaster] = useState<ArticleMaster[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [operationLoading, setOperationLoading] = useState(false);
 
-  // Carga inicial híbrida (Supabase + Local Fallback)
+  // Enhanced data loading with proper error handling
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
+      setError(null);
       
-      // Si no hay Supabase configurado, cargamos mocks o local storage y salimos
+      // If Supabase is not configured, use local mode
       console.log("Supabase Configurado:", isSupabaseConfigured);
       if (!isSupabaseConfigured) {
         console.warn("Supabase no configurado. Iniciando en modo local.");
@@ -47,7 +50,7 @@ export default function App() {
       }
 
       try {
-        // Timeout de seguridad de 5 segundos para la conexión inicial
+        // Timeout de seguridad de 8 segundos para la conexión inicial
         const dataPromise = Promise.all([
           supabaseService.fetchTable('picking_orders'),
           supabaseService.fetchTable('reception_orders'),
@@ -58,21 +61,34 @@ export default function App() {
           supabaseService.fetchTable('operators')
         ]);
 
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout conectando a Supabase")), 5000)
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error("Timeout conectando a Supabase")), 8000)
         );
 
-        const [o, r, c, s, m, a, ops] = await Promise.race([dataPromise, timeoutPromise]) as any[];
+        const results = await Promise.race([dataPromise, timeoutPromise]);
         
-        setOrders(o || []);
-        setReceptions(r || []);
-        setConditioning(c || []);
-        setStorage(s || []);
-        setMasterBase(m || []);
-        setArticleMaster(a || []);
-        setOperators(ops?.length > 0 ? ops : MOCK_OPS);
+        // Handle results with proper error checking
+        const [ordersResult, receptionsResult, conditioningResult, storageResult, masterResult, articleResult, operatorsResult] = results;
+        
+        // Set data from successful results or empty arrays for failures
+        setOrders(ordersResult.success ? ordersResult.data! : []);
+        setReceptions(receptionsResult.success ? receptionsResult.data! : []);
+        setConditioning(conditioningResult.success ? conditioningResult.data! : []);
+        setStorage(storageResult.success ? storageResult.data! : []);
+        setMasterBase(masterResult.success ? masterResult.data! : []);
+        setArticleMaster(articleResult.success ? articleResult.data! : []);
+        setOperators(operatorsResult.success && operatorsResult.data!.length > 0 ? operatorsResult.data! : MOCK_OPS);
+        
+        // Collect any errors
+        const errors = results.filter(r => !r.success).map(r => r.error).filter(Boolean);
+        if (errors.length > 0) {
+          console.warn("Algunos datos no pudieron cargarse:", errors);
+          setError(`Algunos datos no pudieron cargarse: ${errors.join(', ')}`);
+        }
+        
       } catch (err) {
         console.error("Fallo de sincronización. Usando modo offline:", err);
+        setError(`Error de conexión: ${String(err)}`);
         setOperators(MOCK_OPS);
       } finally {
         setIsLoading(false);
@@ -81,34 +97,215 @@ export default function App() {
     loadData();
   }, []);
 
-  // Handlers para asegurar persistencia al eliminar
+  // Enhanced delete handlers with proper error handling and rollback
   const handleDeleteOrder = async (id: string) => {
+    if (!id) return;
+    setOperationLoading(true);
+    
+    // Optimistic update
+    const previousOrders = orders;
     setOrders(prev => prev.filter(o => String(o.id) !== String(id)));
-    if (isSupabaseConfigured) await supabaseService.delete('picking_orders', id);
+    
+    if (isSupabaseConfigured) {
+      const result = await supabaseService.delete('picking_orders', id);
+      if (!result.success) {
+        // Rollback on failure
+        setOrders(previousOrders);
+        setError(`Error eliminando orden: ${result.error}`);
+        console.error('Delete order failed:', result.error);
+      }
+    }
+    setOperationLoading(false);
   };
   
   const handleDeleteReception = async (id: string) => {
+    if (!id) return;
+    setOperationLoading(true);
+    
+    const previousReceptions = receptions;
     setReceptions(prev => prev.filter(r => String(r.id) !== String(id)));
-    if (isSupabaseConfigured) await supabaseService.delete('reception_orders', id);
+    
+    if (isSupabaseConfigured) {
+      const result = await supabaseService.delete('reception_orders', id);
+      if (!result.success) {
+        setReceptions(previousReceptions);
+        setError(`Error eliminando recepción: ${result.error}`);
+        console.error('Delete reception failed:', result.error);
+      }
+    }
+    setOperationLoading(false);
   };
   
   const handleDeleteConditioning = async (id: string) => {
+    if (!id) return;
+    setOperationLoading(true);
+    
+    const previousConditioning = conditioning;
     setConditioning(prev => prev.filter(c => String(c.id) !== String(id)));
-    if (isSupabaseConfigured) await supabaseService.delete('conditioning_orders', id);
+    
+    if (isSupabaseConfigured) {
+      const result = await supabaseService.delete('conditioning_orders', id);
+      if (!result.success) {
+        setConditioning(previousConditioning);
+        setError(`Error eliminando acondicionamiento: ${result.error}`);
+        console.error('Delete conditioning failed:', result.error);
+      }
+    }
+    setOperationLoading(false);
   };
 
   const handleDeleteStorage = async (id: string) => {
+    if (!id) return;
+    setOperationLoading(true);
+    
+    const previousStorage = storage;
     setStorage(prev => prev.filter(s => String(s.id) !== String(id)));
-    if (isSupabaseConfigured) await supabaseService.delete('storage_orders', id);
+    
+    if (isSupabaseConfigured) {
+      const result = await supabaseService.delete('storage_orders', id);
+      if (!result.success) {
+        setStorage(previousStorage);
+        setError(`Error eliminando almacenamiento: ${result.error}`);
+        console.error('Delete storage failed:', result.error);
+      }
+    }
+    setOperationLoading(false);
   };
 
-  const handleSetOrders = (newOrders: any) => {
+  const handleSetOrders = async (newOrders: any) => {
+    setOperationLoading(true);
     const value = typeof newOrders === 'function' ? newOrders(orders) : newOrders;
+    const previousOrders = orders;
+    
     setOrders(value);
-    const latest = Array.isArray(value) ? value[0] : null;
-    if (isSupabaseConfigured && latest && latest.id) {
-      supabaseService.upsert('picking_orders', latest);
+    
+    if (isSupabaseConfigured) {
+      const latest = Array.isArray(value) ? value[0] : null;
+      if (latest && latest.id) {
+        const result = await supabaseService.upsert('picking_orders', latest);
+        if (!result.success) {
+          // Rollback on failure
+          setOrders(previousOrders);
+          setError(`Error guardando orden: ${result.error}`);
+          console.error('Save order failed:', result.error);
+        }
+      }
     }
+    setOperationLoading(false);
+  };
+
+  // Improved handlers for other operations
+  const handleSaveOrder = async (order: PickingOrder) => {
+    setOperationLoading(true);
+    const previousOrders = orders;
+    setOrders(prev => [order, ...prev]);
+    
+    if (isSupabaseConfigured) {
+      const result = await supabaseService.upsert('picking_orders', order);
+      if (!result.success) {
+        setOrders(previousOrders);
+        setError(`Error guardando orden: ${result.error}`);
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleUpdateOrder = async (order: PickingOrder) => {
+    setOperationLoading(true);
+    const previousOrders = orders;
+    setOrders(prev => prev.map(x => String(x.id) === String(order.id) ? order : x));
+    
+    if (isSupabaseConfigured) {
+      const result = await supabaseService.upsert('picking_orders', order);
+      if (!result.success) {
+        setOrders(previousOrders);
+        setError(`Error actualizando orden: ${result.error}`);
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleSetReceptions = async (newReceptions: any) => {
+    setOperationLoading(true);
+    const previousReceptions = receptions;
+    const value = typeof newReceptions === 'function' ? newReceptions(receptions) : newReceptions;
+    setReceptions(value);
+    
+    if (isSupabaseConfigured) {
+      const latest = Array.isArray(value) ? value[0] : null;
+      if (latest && latest.id) {
+        const result = await supabaseService.upsert('reception_orders', latest);
+        if (!result.success) {
+          setReceptions(previousReceptions);
+          setError(`Error guardando recepción: ${result.error}`);
+        }
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleSetStorage = async (newStorage: any) => {
+    setOperationLoading(true);
+    const previousStorage = storage;
+    const value = typeof newStorage === 'function' ? newStorage(storage) : newStorage;
+    setStorage(value);
+    
+    if (isSupabaseConfigured) {
+      const latest = Array.isArray(value) ? value[0] : null;
+      if (latest && latest.id) {
+        const result = await supabaseService.upsert('storage_orders', latest);
+        if (!result.success) {
+          setStorage(previousStorage);
+          setError(`Error guardando almacenamiento: ${result.error}`);
+        }
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleSetConditioning = async (newConditioning: any) => {
+    setOperationLoading(true);
+    const previousConditioning = conditioning;
+    const value = typeof newConditioning === 'function' ? newConditioning(conditioning) : newConditioning;
+    setConditioning(value);
+    
+    if (isSupabaseConfigured) {
+      const latest = Array.isArray(value) ? value[0] : null;
+      if (latest && latest.id) {
+        const result = await supabaseService.upsert('conditioning_orders', latest);
+        if (!result.success) {
+          setConditioning(previousConditioning);
+          setError(`Error guardando acondicionamiento: ${result.error}`);
+        }
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleSetMasterBase = async (newMasterBase: any) => {
+    setOperationLoading(true);
+    setMasterBase(newMasterBase);
+    
+    if (isSupabaseConfigured && Array.isArray(newMasterBase)) {
+      const results = await supabaseService.batchUpsert('master_orders', newMasterBase);
+      if (!results.success && results.errors.length > 0) {
+        setError(`Error guardando maestro de órdenes: ${results.errors[0]}`);
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleSetArticleMaster = async (newArticleMaster: any) => {
+    setOperationLoading(true);
+    setArticleMaster(newArticleMaster);
+    
+    if (isSupabaseConfigured && Array.isArray(newArticleMaster)) {
+      const results = await supabaseService.batchUpsert('article_master', newArticleMaster);
+      if (!results.success && results.errors.length > 0) {
+        setError(`Error guardando maestro de artículos: ${results.errors[0]}`);
+      }
+    }
+    setOperationLoading(false);
   };
 
   const stats = useMemo((): OperatorStats[] => {
@@ -203,22 +400,40 @@ export default function App() {
           </nav>
         </aside>
         <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-[#FAFBFC]">
+          {/* Global error notification */}
+          {error && (
+            <div className="fixed top-4 right-4 z-[999] bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-lg shadow-lg max-w-md">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold">{error}</p>
+                <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 ml-2">×</button>
+              </div>
+            </div>
+          )}
+          
+          {/* Global loading indicator */}
+          {operationLoading && (
+            <div className="fixed bottom-4 right-4 z-[999] bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+              <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>
+              <span className="text-xs font-bold">Sincronizando...</span>
+            </div>
+          )}
+          
           <div className="max-w-6xl mx-auto h-full">
             <Routes>
               <Route path="/" element={<Dashboard orders={orders} stats={stats} masterBase={masterBase} receptions={receptions} conditioning={conditioning} storage={storage} />} />
-              <Route path="/reception" element={<Reception receptions={receptions} setReceptions={(r:any)=>{setReceptions(r); if(isSupabaseConfigured) supabaseService.upsert('reception_orders', Array.isArray(r)?r[0]:r)}} onDelete={handleDeleteReception} operators={operators} />} />
-              <Route path="/storage" element={<Storage storage={storage} setStorage={(s:any)=>{setStorage(s); if(isSupabaseConfigured) supabaseService.upsert('storage_orders', Array.isArray(s)?s[0]:s)}} onDelete={handleDeleteStorage} operators={operators} articleMaster={articleMaster} />} />
-              <Route path="/conditioning" element={<Conditioning conditioning={conditioning} setConditioning={(c:any)=>{setConditioning(c); if(isSupabaseConfigured) supabaseService.upsert('conditioning_orders', Array.isArray(c)?c[0]:c)}} onDelete={handleDeleteConditioning} operators={operators} />} />
-              <Route path="/manage" element={<ManageOrders orders={orders} operators={operators} masterBase={masterBase} onSave={(o:any) => {setOrders(p=>[o,...p]); if(isSupabaseConfigured) supabaseService.upsert('picking_orders', o)}} onUpdate={(o:any) => {setOrders(p=>p.map(x=>String(x.id)===String(o.id)?o:x)); if(isSupabaseConfigured) supabaseService.upsert('picking_orders', o)}} onDelete={handleDeleteOrder} />} />
+              <Route path="/reception" element={<Reception receptions={receptions} setReceptions={handleSetReceptions} onDelete={handleDeleteReception} operators={operators} />} />
+              <Route path="/storage" element={<Storage storage={storage} setStorage={handleSetStorage} onDelete={handleDeleteStorage} operators={operators} articleMaster={articleMaster} />} />
+              <Route path="/conditioning" element={<Conditioning conditioning={conditioning} setConditioning={handleSetConditioning} onDelete={handleDeleteConditioning} operators={operators} />} />
+              <Route path="/manage" element={<ManageOrders orders={orders} operators={operators} masterBase={masterBase} onSave={handleSaveOrder} onUpdate={handleUpdateOrder} onDelete={handleDeleteOrder} />} />
               <Route path="/upload" element={<Upload 
                 setOrders={handleSetOrders} 
-                setReceptions={(r:any)=>setReceptions(p=>[...r,...p])} 
-                setStorage={(s:any)=>setStorage(p=>[...s,...p])} 
-                setConditioning={(c:any)=>setConditioning(p=>[...c,...p])} 
+                setReceptions={handleSetReceptions} 
+                setStorage={handleSetStorage} 
+                setConditioning={handleSetConditioning} 
                 masterBase={masterBase} 
-                setMasterBase={(m:any)=>{setMasterBase(m); if(isSupabaseConfigured) m.forEach((x:any)=>supabaseService.upsertMaster(x))}} 
+                setMasterBase={handleSetMasterBase} 
                 articleMaster={articleMaster} 
-                setArticleMaster={(a:any)=>{setArticleMaster(a); if(isSupabaseConfigured) a.forEach((x:any)=>supabaseService.upsertArticleMaster(x))}} 
+                setArticleMaster={handleSetArticleMaster} 
               />} />
               <Route path="/config" element={<Operators operators={operators} setOperators={setOperators} stats={stats} />} />
               <Route path="/reports" element={<Reports orders={orders} receptions={receptions} conditioning={conditioning} storage={storage} />} />
