@@ -8,7 +8,6 @@ export default function Reception({ receptions, setReceptions, onDelete, operato
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
   
   const [form, setForm] = useState<any>({
     fecha: new Date().toISOString().split('T')[0], 
@@ -23,7 +22,7 @@ export default function Reception({ receptions, setReceptions, onDelete, operato
     fotoEvidencia: ''
   });
 
-  const tipos: TipoRecepcion[] = ['Compra Local', 'Importación'];
+  const tipos: TipoRecepcion[] = ['Compra Local', 'Importación', 'Devoluciones'];
 
   const handleOpenEdit = (r: ReceptionOrder) => {
     setForm({ ...r });
@@ -50,37 +49,24 @@ export default function Reception({ receptions, setReceptions, onDelete, operato
     setShowForm(true);
   };
 
-  const save = async (e: React.FormEvent) => {
+  const save = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    const [h1, m1] = (form.horaInicio || '08:00').split(':').map(Number);
+    const [h2, m2] = (form.horaFin || '09:00').split(':').map(Number);
+    const dur = (h2 * 60 + m2) - (h1 * 60 + m1);
+
+    const updatedRec: ReceptionOrder = {
+      ...form,
+      id: editingId || Math.random().toString(36).substr(2, 9),
+      cantidad: Number(form.cantidad || 0), 
+      lineas: Number(form.lineas || 0),
+      duracionMinutos: Math.max(1, dur)
+    };
+
+    if (editingId) setReceptions(receptions.map(r => r.id === editingId ? updatedRec : r));
+    else setReceptions([updatedRec, ...receptions]);
     
-    try {
-      const [h1, m1] = (form.horaInicio || '08:00').split(':').map(Number);
-      const [h2, m2] = (form.horaFin || '09:00').split(':').map(Number);
-      const dur = (h2 * 60 + m2) - (h1 * 60 + m1);
-
-      const updatedRec: ReceptionOrder = {
-        ...form,
-        id: editingId || Math.random().toString(36).substr(2, 9),
-        cantidad: Number(form.cantidad || 0), 
-        lineas: Number(form.lineas || 0),
-        duracionMinutos: Math.max(1, dur)
-      };
-
-      if (editingId) {
-        await setReceptions(receptions.map(r => r.id === editingId ? updatedRec : r));
-      } else {
-        await setReceptions([updatedRec, ...receptions]);
-      }
-      
-      setShowForm(false);
-      setEditingId(null);
-    } catch (error) {
-      console.error('Error saving reception:', error);
-      // The error will be handled by the parent component
-    } finally {
-      setSaving(false);
-    }
+    setShowForm(false); setEditingId(null);
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,9 +186,8 @@ export default function Reception({ receptions, setReceptions, onDelete, operato
                 <div className="flex flex-col gap-3 pt-4">
                   {!isConfirming ? (
                     <>
-                      <button type="submit" disabled={saving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                        {saving && <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full"></div>}
-                        {saving ? 'GUARDANDO...' : (editingId ? 'ACTUALIZAR REGISTRO' : 'GUARDAR RECEPCIÓN')}
+                      <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-indigo-700 transition-all">
+                        {editingId ? 'ACTUALIZAR REGISTRO' : 'GUARDAR RECEPCIÓN'}
                       </button>
                       {editingId && (
                         <button type="button" onClick={() => setIsConfirming(true)} className="w-full bg-red-50 text-red-600 py-4 rounded-2xl font-black text-[10px] uppercase hover:bg-red-100 transition-all">

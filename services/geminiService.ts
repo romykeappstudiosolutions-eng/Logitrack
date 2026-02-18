@@ -2,32 +2,31 @@
 import { GoogleGenAI } from "@google/genai";
 import { PickingOrder, OperatorStats } from "../types.ts";
 
-export const getLogisticAnalysis = async (orders: PickingOrder[], stats: OperatorStats[]) => {
+export const getLogisticAnalysis = async (orders: PickingOrder[], stats: OperatorStats[], dateRange: { start: string, end: string }) => {
   const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   
   const prompt = `
-    Como Director de Operaciones Logísticas, analiza el desempeño diario:
-    - Pedidos Totales: ${orders.length}
+    Como Director de Operaciones Logísticas, analiza el desempeño en el periodo del ${dateRange.start} al ${dateRange.end}:
+    - Pedidos Totales en Periodo: ${orders.length}
     - Pickings Finalizados: ${orders.filter(o => o.status === 'Procesado').length}
-    - Packings Finalizados: ${orders.filter(o => o.statusPacking === 'Procesado').length}
-    - Total Líneas de Artículos: ${orders.reduce((acc, o) => acc + o.lineas, 0)}
-    - Total Unidades Físicas: ${orders.reduce((acc, o) => acc + o.cantidad, 0)}
+    - Packings Finalizados: ${orders.filter(o => o.operadorPacking && o.operadorPacking !== '').length}
+    - Total Líneas Procesadas: ${orders.reduce((acc, o) => acc + (Number(o.lineas) || 0), 0)}
+    - Total Unidades Físicas: ${orders.reduce((acc, o) => acc + (Number(o.cantidad) || 0), 0)}
 
-    Resumen por Operador (Volúmenes y Eficiencia):
+    Resumen de Productividad por Operador en este rango:
     ${JSON.stringify(stats.map(s => ({
       nombre: s.name,
-      picking: { lineas: s.totalLines, unidades: s.totalQuantity, tiempo: s.totalPickMinutes + ' min', registros: s.pickRecords },
-      packing: { lineas: s.totalPackLines, unidades: s.totalPackQuantity, tiempo: s.totalPackMinutes + ' min', registros: s.packRecords },
-      recepcion: { lineas: s.totalRecLines, unidades: s.totalRecQuantity, tiempo: s.totalRecMinutes + ' min' },
-      almacenamiento: { unidades: s.totalStorageQuantity, tiempo: s.totalStorageMinutes + ' min', registros: s.storageRecords },
-      vas: { lineas: s.totalVasLines, unidades: s.totalVasQuantity, tiempo: s.totalVasMinutes + ' min' }
+      picking: { ef: s.efficiency.toFixed(1) + ' L/H', total: s.totalLines },
+      packing: { ef: (s.packingEfficiency || 0).toFixed(1) + ' L/H', total: s.totalPackLines },
+      recepcion: { ef: (s.receptionEfficiency || 0).toFixed(1) + ' L/H' },
+      vas: { unidades: s.totalVasQuantity }
     })))}
 
-    Proporciona una auditoría ejecutiva (4 puntos) sobre:
-    1. Densidad operativa (Artículos vs Tiempos).
-    2. Operadores más productivos por tipo de flujo.
-    3. Cuellos de botella detectados en tiempos de ejecución.
-    4. Recomendación estratégica para mejorar el despacho y la ubicación de stock.
+    Proporciona una auditoría ejecutiva del PERIODO (4 puntos) sobre:
+    1. Densidad operativa y cumplimiento de la ventana temporal.
+    2. Operadores destacados en este rango específico.
+    3. Anomalías o cuellos de botella detectados.
+    4. Recomendación estratégica inmediata.
     Usa un lenguaje profesional y directo.
   `;
 
@@ -39,29 +38,27 @@ export const getLogisticAnalysis = async (orders: PickingOrder[], stats: Operato
     return response.text;
   } catch (error) {
     console.error("AI Error:", error);
-    return "Análisis gerencial no disponible. Verifique conexión.";
+    return "Análisis gerencial no disponible para este rango. Verifique conexión.";
   }
 };
 
-export const getOperatorSpecificAnalysis = async (operatorName: string, stats: OperatorStats) => {
+export const getOperatorSpecificAnalysis = async (operatorName: string, stats: OperatorStats, dateRange: { start: string, end: string }) => {
   const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
   
   const prompt = `
-    Realiza una auditoría técnica de productividad para el colaborador "${operatorName}":
+    Realiza una auditoría técnica de productividad para "${operatorName}" del ${dateRange.start} al ${dateRange.end}:
 
-    MÉTRICAS POR PROCESO:
-    - PICKING: ${stats.totalLines} Líneas de Artículos, ${stats.totalQuantity} Unidades, ${stats.totalPickMinutes} min invertidos en ${stats.pickRecords} registros.
-    - PACKING: ${stats.totalPackLines} Líneas de Artículos, ${stats.totalPackQuantity} Unidades, ${stats.totalPackMinutes} min invertidos en ${stats.packRecords} registros.
-    - RECEPCIÓN: ${stats.totalRecLines} Líneas, ${stats.totalRecQuantity} Unidades, ${stats.totalRecMinutes} min invertidos.
-    - ALMACENAMIENTO: ${stats.totalStorageQuantity} Unidades movidas, ${stats.totalStorageMinutes} min invertidos en ${stats.storageRecords} movimientos.
-    - VAS: ${stats.totalVasLines} Líneas, ${stats.totalVasQuantity} Unidades, ${stats.totalVasMinutes} min invertidos.
+    MÉTRICAS DEL PERIODO:
+    - PICKING: ${stats.totalLines} Líneas, ${stats.efficiency.toFixed(1)} L/H.
+    - PACKING: ${stats.totalPackLines} Líneas, ${(stats.packingEfficiency || 0).toFixed(1)} L/H.
+    - RECEPCIÓN: ${stats.totalRecQuantity} Unid, ${(stats.receptionEfficiency || 0).toFixed(1)} L/H.
+    - VAS: ${stats.totalVasQuantity} Unidades procesadas.
 
     PROPORCIONA:
-    1. Análisis de Capacidad de Respuesta (Relación Artículos/Minuto).
-    2. Identificación de Excelencia Operativa (¿En qué proceso destaca más?).
-    3. Área Crítica de Mejora (Eficiencia o Volumen).
-    4. Recomendación de Capacitación o Ajuste de Rol.
-    Usa tono de Supervisor Senior. Sé conciso pero profundo. Máximo 200 palabras.
+    1. Evaluación de rendimiento en este rango de fechas.
+    2. Comparativa implícita contra estándares de 45 L/H.
+    3. Una fortaleza y una oportunidad de mejora crítica.
+    Máximo 150 palabras. Tono supervisor senior.
   `;
 
   try {
@@ -72,6 +69,6 @@ export const getOperatorSpecificAnalysis = async (operatorName: string, stats: O
     return response.text;
   } catch (error) {
     console.error("Operator AI Error:", error);
-    return "No se pudo generar el reporte técnico individual.";
+    return "No se pudo generar el reporte técnico para este rango de fechas.";
   }
 };
