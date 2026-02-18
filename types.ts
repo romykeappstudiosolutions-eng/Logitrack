@@ -8,7 +8,7 @@ export interface Operator {
 
 export type OrderStatus = 'Pendiente' | 'Procesado' | 'Anulado';
 export type TipoLista = 'General (Artículos)' | 'Individual (Clientes)';
-export type TipoRecepcion = 'Compra Local' | 'Importación';
+export type TipoRecepcion = 'Compra Local' | 'Importación' | 'Devoluciones';
 export type TipoAcondicionamiento = 'Inkjet' | 'Leyendas' | 'Etiquetado' | 'Encajado' | 'Borrado e Inkjet' | 'Reg San';
 export type TipoBodega = 'Ambiente' | 'Refrigerado';
 
