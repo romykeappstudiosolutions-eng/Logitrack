@@ -217,6 +217,68 @@ export const supabaseService = {
   },
 
   /**
+   * Batch upsert master orders with documento conflict resolution
+   */
+  async batchUpsertMaster(records: Partial<MasterOrder>[]): Promise<BatchResult> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, successCount: 0, failureCount: records.length, errors: ['Supabase not configured'] };
+    }
+    
+    if (!Array.isArray(records) || records.length === 0) {
+      return { success: false, successCount: 0, failureCount: 0, errors: ['No records provided'] };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('master_orders')
+        .upsert(records, { onConflict: 'documento' })
+        .select();
+        
+      if (error) {
+        console.error('Error batch upserting master:', error);
+        return { success: false, successCount: 0, failureCount: records.length, errors: [error.message] };
+      }
+      
+      const successCount = data?.length || records.length;
+      return { success: true, successCount, failureCount: 0, errors: [] };
+    } catch (error) {
+      console.error('Unexpected error batch upserting master:', error);
+      return { success: false, successCount: 0, failureCount: records.length, errors: [String(error)] };
+    }
+  },
+
+  /**
+   * Batch upsert article master with codigo conflict resolution
+   */
+  async batchUpsertArticleMaster(records: Partial<ArticleMaster>[]): Promise<BatchResult> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, successCount: 0, failureCount: records.length, errors: ['Supabase not configured'] };
+    }
+    
+    if (!Array.isArray(records) || records.length === 0) {
+      return { success: false, successCount: 0, failureCount: 0, errors: ['No records provided'] };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('article_master')
+        .upsert(records, { onConflict: 'codigo' })
+        .select();
+        
+      if (error) {
+        console.error('Error batch upserting article master:', error);
+        return { success: false, successCount: 0, failureCount: records.length, errors: [error.message] };
+      }
+      
+      const successCount = data?.length || records.length;
+      return { success: true, successCount, failureCount: 0, errors: [] };
+    } catch (error) {
+      console.error('Unexpected error batch upserting article master:', error);
+      return { success: false, successCount: 0, failureCount: records.length, errors: [String(error)] };
+    }
+  },
+
+  /**
    * Health check for Supabase connection
    */
   async healthCheck(): Promise<ServiceResult<boolean>> {

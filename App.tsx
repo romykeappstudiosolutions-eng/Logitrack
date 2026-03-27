@@ -287,9 +287,11 @@ export default function App() {
     setMasterBase(newMasterBase);
     
     if (isSupabaseConfigured && Array.isArray(newMasterBase)) {
-      const results = await supabaseService.batchUpsert('master_orders', newMasterBase);
+      const results = await supabaseService.batchUpsertMaster(newMasterBase);
       if (!results.success && results.errors.length > 0) {
         setError(`Error guardando maestro de órdenes: ${results.errors[0]}`);
+      } else if (results.successCount > 0) {
+        alert(`${results.successCount} pedidos maestros guardados exitosamente.`);
       }
     }
     setOperationLoading(false);
@@ -300,9 +302,11 @@ export default function App() {
     setArticleMaster(newArticleMaster);
     
     if (isSupabaseConfigured && Array.isArray(newArticleMaster)) {
-      const results = await supabaseService.batchUpsert('article_master', newArticleMaster);
+      const results = await supabaseService.batchUpsertArticleMaster(newArticleMaster);
       if (!results.success && results.errors.length > 0) {
         setError(`Error guardando maestro de artículos: ${results.errors[0]}`);
+      } else if (results.successCount > 0) {
+        alert(`${results.successCount} artículos guardados exitosamente.`);
       }
     }
     setOperationLoading(false);
