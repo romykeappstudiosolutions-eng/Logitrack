@@ -25,124 +25,107 @@ export default function Upload({
     setUploading(true);
     const reader = new FileReader();
     reader.onload = (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
+      (async () => {
+        try {
+          const bstr = evt.target?.result;
+          const wb = XLSX.read(bstr, { type: 'binary' });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const data: any[] = XLSX.utils.sheet_to_json(ws);
 
-        if (mode === 'MAESTRO') {
-          const mapped = data.map(r => ({
-            documento: String(r['documento'] || r['Documento'] || r['DOCUMENTO'] || r['PEDIDO'] || r['Pedido'] || '').trim(),
-            cliente: String(r['cliente'] || r['Cliente'] || r['CLIENTE'] || r['NOMBRE'] || r['Nombre'] || 'S/N').trim(),
-            lineas: Number(r['lineas'] || r['Lineas'] || r['LINEAS'] || r['SKUS'] || r['Skus'] || 0),
-            cantidad: Number(r['cantidad'] || r['Cantidad'] || r['CANTIDAD'] || r['UNIDADES'] || r['Unidades'] || 0)
-          })).filter(x => x.documento);
-          setMasterBase(mapped);
-          alert(`${mapped.length} registros cargados en Maestro de Pedidos.`);
-        } else if (mode === 'ARTICULOS') {
-          const mapped = data.map(r => ({
-            codigo: String(
-              r['codigo'] || r['Codigo'] || r['CÓDIGO'] || r['CODIGO'] || 
-              r['SKU'] || r['Sku'] || r['EAN'] || r['Ean'] || 
-              r['ARTICULO'] || r['Articulo'] || r['ARTÍCULO'] || ''
-            ).trim(),
-            descripcion: String(
-              r['descripcion'] || r['Descripcion'] || r['DESCRIPCIÓN'] || r['DESCRIPCION'] || 
-              r['NOMBRE'] || r['Nombre'] || r['PRODUCTO'] || r['Producto'] || ''
-            ).trim()
-          })).filter(x => x.codigo && x.codigo !== "undefined");
-          
-          setArticleMaster(mapped);
-          alert(`${mapped.length} artículos vinculados exitosamente al Maestro de Productos.`);
-        } else if (mode === 'PICKING') {
-          const mapped = data.map(r => ({
-            id: Math.random().toString(36).substr(2,9),
-            fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
-            documento: String(r['documento'] || r['Documento'] || '').trim(),
-            cliente: String(r['cliente'] || r['Cliente'] || 'N/A'),
-            tipoLista: 'Individual (Clientes)',
-            operador: String(r['operador'] || r['Operador'] || 'S/A'),
-            horaInicio: String(r['hora_inicio'] || '08:00'),
-            horaFin: String(r['hora_fin'] || '08:30'),
-            status: 'Procesado',
-            cantidad: Number(r['cantidad'] || r['Cantidad'] || 0),
-            lineas: Number(r['lineas'] || r['Lineas'] || 0),
-            duracionMinutos: 30
-          })).filter(x => x.documento);
+          if (mode === 'MAESTRO') {
+            const mapped = data.map(r => ({
+              documento: String(r['documento'] || r['Documento'] || r['DOCUMENTO'] || r['PEDIDO'] || r['Pedido'] || '').trim(),
+              cliente: String(r['cliente'] || r['Cliente'] || r['CLIENTE'] || r['NOMBRE'] || r['Nombre'] || 'S/N').trim(),
+              lineas: Number(r['lineas'] || r['Lineas'] || r['LINEAS'] || r['SKUS'] || r['Skus'] || 0),
+              cantidad: Number(r['cantidad'] || r['Cantidad'] || r['CANTIDAD'] || r['UNIDADES'] || r['Unidades'] || 0)
+            })).filter(x => x.documento);
+            await setMasterBase(mapped);
+          } else if (mode === 'ARTICULOS') {
+            const mapped = data.map(r => ({
+              codigo: String(
+                r['codigo'] || r['Codigo'] || r['CÓDIGO'] || r['CODIGO'] || 
+                r['SKU'] || r['Sku'] || r['EAN'] || r['Ean'] || 
+                r['ARTICULO'] || r['Articulo'] || r['ARTÍCULO'] || ''
+              ).trim(),
+              descripcion: String(
+                r['descripcion'] || r['Descripcion'] || r['DESCRIPCIÓN'] || r['DESCRIPCION'] || 
+                r['NOMBRE'] || r['Nombre'] || r['PRODUCTO'] || r['Producto'] || ''
+              ).trim()
+            })).filter(x => x.codigo && x.codigo !== "undefined");
+            
+            await setArticleMaster(mapped);
+          } else if (mode === 'PICKING') {
+            const mapped = data.map(r => ({
+              id: Math.random().toString(36).substr(2,9),
+              fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
+              documento: String(r['documento'] || r['Documento'] || '').trim(),
+              cliente: String(r['cliente'] || r['Cliente'] || 'N/A'),
+              tipoLista: 'Individual (Clientes)',
+              operador: String(r['operador'] || r['Operador'] || 'S/A'),
+              horaInicio: String(r['hora_inicio'] || '08:00'),
+              horaFin: String(r['hora_fin'] || '08:30'),
+              status: 'Procesado',
+              cantidad: Number(r['cantidad'] || r['Cantidad'] || 0),
+              lineas: Number(r['lineas'] || r['Lineas'] || 0),
+              duracionMinutos: 30
+            })).filter(x => x.documento);
 
-          // Lógica de Upsert por Documento
-          setOrders((prev: any[]) => {
-            const updated = [...prev];
-            mapped.forEach(newItem => {
-              const existingIndex = updated.findIndex(o => String(o.documento).trim().toLowerCase() === newItem.documento.toLowerCase());
-              if (existingIndex !== -1) {
-                // Actualizar manteniendo el ID único original
-                updated[existingIndex] = { ...updated[existingIndex], ...newItem, id: updated[existingIndex].id };
-              } else {
-                // No existe, se agrega al inicio
-                updated.unshift(newItem);
-              }
-            });
-            return updated;
-          });
-          alert(`${mapped.length} registros de Picking procesados (Nuevos / Actualizados).`);
-        } else if (mode === 'RECEPTION') {
-          const mapped = data.map(r => ({
-            id: Math.random().toString(36).substr(2,9),
-            fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
-            tipo: String(r['tipo'] || 'Compra Local'),
-            documento: String(r['documento'] || r['Documento'] || ''),
-            proveedor: String(r['proveedor'] || r['Proveedor'] || 'N/A'),
-            operador: String(r['operador'] || r['Operador'] || 'S/A'),
-            horaInicio: String(r['hora_inicio'] || '08:00'),
-            horaFin: String(r['hora_fin'] || '09:00'),
-            cantidad: Number(r['cantidad'] || 0),
-            lineas: Number(r['lineas'] || 0),
-            duracionMinutos: 60
-          }));
-          setReceptions((prev: any) => [...mapped, ...prev]);
-          alert(`${mapped.length} registros de Recepción cargados.`);
-        } else if (mode === 'STORAGE') {
-          const mapped = data.map(r => ({
-            id: Math.random().toString(36).substr(2,9),
-            fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
-            ubicacionEntrada: String(r['entrada'] || r['Entrada'] || 'A-1'),
-            ubicacionSalida: String(r['salida'] || r['Salida'] || 'B-1'),
-            operador: String(r['operador'] || r['Operador'] || 'S/A'),
-            horaInicio: String(r['hora_inicio'] || '08:00'),
-            horaFin: String(r['hora_fin'] || '09:00'),
-            tipoBodega: String(r['bodega'] || 'Ambiente'),
-            cantidad: Number(r['cantidad'] || 0),
-            codigoProducto: String(r['codigo'] || r['Codigo'] || r['SKU'] || ''),
-            descripcionProducto: String(r['descripcion'] || r['Descripcion'] || r['NOMBRE'] || ''),
-            duracionMinutos: 60
-          }));
-          setStorage((prev: any) => [...mapped, ...prev]);
-          alert(`${mapped.length} registros de Almacenamiento cargados.`);
-        } else if (mode === 'VAS') {
-          const mapped = data.map(r => ({
-            id: Math.random().toString(36).substr(2,9),
-            fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
-            tipo: String(r['proceso'] || r['Proceso'] || 'Etiquetado'),
-            operador: String(r['operador'] || r['Operador'] || 'S/A'),
-            cliente: String(r['cliente'] || r['Cliente'] || 'N/A'),
-            documento: String(r['documento'] || r['Documento'] || ''),
-            horaInicio: String(r['hora_inicio'] || '08:00'),
-            horaFin: String(r['hora_fin'] || '09:00'),
-            lineas: Number(r['lineas'] || 0),
-            cantidad: Number(r['cantidad'] || 0),
-            duracionMinutos: 60
-          }));
-          setConditioning((prev: any) => [...mapped, ...prev]);
-          alert(`${mapped.length} registros de VAS cargados.`);
+            // Use batch upload handler instead of direct state update
+            await setOrders(mapped, 'append');
+          } else if (mode === 'RECEPTION') {
+            const mapped = data.map(r => ({
+              id: Math.random().toString(36).substr(2,9),
+              fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
+              tipo: String(r['tipo'] || 'Compra Local'),
+              documento: String(r['documento'] || r['Documento'] || ''),
+              proveedor: String(r['proveedor'] || r['Proveedor'] || 'N/A'),
+              operador: String(r['operador'] || r['Operador'] || 'S/A'),
+              horaInicio: String(r['hora_inicio'] || '08:00'),
+              horaFin: String(r['hora_fin'] || '09:00'),
+              cantidad: Number(r['cantidad'] || 0),
+              lineas: Number(r['lineas'] || 0),
+              duracionMinutos: 60
+            }));
+            await setReceptions(mapped, 'append');
+          } else if (mode === 'STORAGE') {
+            const mapped = data.map(r => ({
+              id: Math.random().toString(36).substr(2,9),
+              fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
+              ubicacionEntrada: String(r['entrada'] || r['Entrada'] || 'A-1'),
+              ubicacionSalida: String(r['salida'] || r['Salida'] || 'B-1'),
+              operador: String(r['operador'] || r['Operador'] || 'S/A'),
+              horaInicio: String(r['hora_inicio'] || '08:00'),
+              horaFin: String(r['hora_fin'] || '09:00'),
+              tipoBodega: String(r['bodega'] || 'Ambiente'),
+              cantidad: Number(r['cantidad'] || 0),
+              codigoProducto: String(r['codigo'] || r['Codigo'] || r['SKU'] || ''),
+              descripcionProducto: String(r['descripcion'] || r['Descripcion'] || r['NOMBRE'] || ''),
+              duracionMinutos: 60
+            }));
+            await setStorage(mapped, 'append');
+          } else if (mode === 'VAS') {
+            const mapped = data.map(r => ({
+              id: Math.random().toString(36).substr(2,9),
+              fecha: String(r['fecha'] || r['Fecha'] || new Date().toISOString().split('T')[0]),
+              tipo: String(r['proceso'] || r['Proceso'] || 'Etiquetado'),
+              operador: String(r['operador'] || r['Operador'] || 'S/A'),
+              cliente: String(r['cliente'] || r['Cliente'] || 'N/A'),
+              documento: String(r['documento'] || r['Documento'] || ''),
+              horaInicio: String(r['hora_inicio'] || '08:00'),
+              horaFin: String(r['hora_fin'] || '09:00'),
+              lineas: Number(r['lineas'] || 0),
+              cantidad: Number(r['cantidad'] || 0),
+              duracionMinutos: 60
+            }));
+            await setConditioning(mapped, 'append');
+          }
+        } catch (err) {
+          alert("Error al procesar el archivo Excel. Verifique que las columnas coincidan.");
+        } finally {
+          setUploading(false);
         }
-      } catch (err) {
-        alert("Error al procesar el archivo Excel. Verifique que las columnas coincidan.");
-      } finally {
-        setUploading(false);
-      }
+      })(); // End of async IIFE
     };
     reader.readAsBinaryString(file);
   };

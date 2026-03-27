@@ -308,6 +308,97 @@ export default function App() {
     setOperationLoading(false);
   };
 
+  // Batch handlers for file uploads
+  const handleBatchUploadOrders = async (newOrders: PickingOrder[], mode: 'replace' | 'append' = 'append') => {
+    setOperationLoading(true);
+    const previousOrders = orders;
+    
+    // Update local state
+    if (mode === 'replace') {
+      setOrders(newOrders);
+    } else {
+      setOrders(prev => [...newOrders, ...prev]);
+    }
+    
+    // Save to Supabase
+    if (isSupabaseConfigured && Array.isArray(newOrders) && newOrders.length > 0) {
+      const results = await supabaseService.batchUpsert('picking_orders', newOrders);
+      if (!results.success && results.errors.length > 0) {
+        setOrders(previousOrders);
+        setError(`Error al cargar órdenes de picking: ${results.errors.length} registros fallaron. ${results.errors[0]}`);
+      } else if (results.successCount > 0) {
+        alert(`${results.successCount} órdenes de picking guardadas exitosamente.`);
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleBatchUploadReceptions = async (newReceptions: ReceptionOrder[], mode: 'replace' | 'append' = 'append') => {
+    setOperationLoading(true);
+    const previousReceptions = receptions;
+    
+    if (mode === 'replace') {
+      setReceptions(newReceptions);
+    } else {
+      setReceptions(prev => [...newReceptions, ...prev]);
+    }
+    
+    if (isSupabaseConfigured && Array.isArray(newReceptions) && newReceptions.length > 0) {
+      const results = await supabaseService.batchUpsert('reception_orders', newReceptions);
+      if (!results.success && results.errors.length > 0) {
+        setReceptions(previousReceptions);
+        setError(`Error al cargar recepciones: ${results.errors.length} registros fallaron. ${results.errors[0]}`);
+      } else if (results.successCount > 0) {
+        alert(`${results.successCount} recepciones guardadas exitosamente.`);
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleBatchUploadStorage = async (newStorage: StorageOrder[], mode: 'replace' | 'append' = 'append') => {
+    setOperationLoading(true);
+    const previousStorage = storage;
+    
+    if (mode === 'replace') {
+      setStorage(newStorage);
+    } else {
+      setStorage(prev => [...newStorage, ...prev]);
+    }
+    
+    if (isSupabaseConfigured && Array.isArray(newStorage) && newStorage.length > 0) {
+      const results = await supabaseService.batchUpsert('storage_orders', newStorage);
+      if (!results.success && results.errors.length > 0) {
+        setStorage(previousStorage);
+        setError(`Error al cargar almacenamientos: ${results.errors.length} registros fallaron. ${results.errors[0]}`);
+      } else if (results.successCount > 0) {
+        alert(`${results.successCount} almacenamientos guardados exitosamente.`);
+      }
+    }
+    setOperationLoading(false);
+  };
+
+  const handleBatchUploadConditioning = async (newConditioning: ConditioningOrder[], mode: 'replace' | 'append' = 'append') => {
+    setOperationLoading(true);
+    const previousConditioning = conditioning;
+    
+    if (mode === 'replace') {
+      setConditioning(newConditioning);
+    } else {
+      setConditioning(prev => [...newConditioning, ...prev]);
+    }
+    
+    if (isSupabaseConfigured && Array.isArray(newConditioning) && newConditioning.length > 0) {
+      const results = await supabaseService.batchUpsert('conditioning_orders', newConditioning);
+      if (!results.success && results.errors.length > 0) {
+        setConditioning(previousConditioning);
+        setError(`Error al cargar VAS: ${results.errors.length} registros fallaron. ${results.errors[0]}`);
+      } else if (results.successCount > 0) {
+        alert(`${results.successCount} registros de VAS guardados exitosamente.`);
+      }
+    }
+    setOperationLoading(false);
+  };
+
   const stats = useMemo((): OperatorStats[] => {
     const map = new Map<string, any>();
     operators.forEach(o => map.set(o.name, { 
@@ -426,10 +517,10 @@ export default function App() {
               <Route path="/conditioning" element={<Conditioning conditioning={conditioning} setConditioning={handleSetConditioning} onDelete={handleDeleteConditioning} operators={operators} />} />
               <Route path="/manage" element={<ManageOrders orders={orders} operators={operators} masterBase={masterBase} onSave={handleSaveOrder} onUpdate={handleUpdateOrder} onDelete={handleDeleteOrder} />} />
               <Route path="/upload" element={<Upload 
-                setOrders={handleSetOrders} 
-                setReceptions={handleSetReceptions} 
-                setStorage={handleSetStorage} 
-                setConditioning={handleSetConditioning} 
+                setOrders={handleBatchUploadOrders} 
+                setReceptions={handleBatchUploadReceptions} 
+                setStorage={handleBatchUploadStorage} 
+                setConditioning={handleBatchUploadConditioning} 
                 masterBase={masterBase} 
                 setMasterBase={handleSetMasterBase} 
                 articleMaster={articleMaster} 
